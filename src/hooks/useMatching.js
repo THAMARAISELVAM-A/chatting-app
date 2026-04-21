@@ -39,17 +39,17 @@ export default function useMatching(sessionId) {
 
   const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
-  const resetInactivityTimer = useCallback(() => {
+  const resetInactivityTimer = useCallback((currentRoom, currentLeaveRoom) => {
     if (inactivityTimeoutRef.current) {
       clearTimeout(inactivityTimeoutRef.current);
     }
 
-    if (room) {
+    if (currentRoom) {
       inactivityTimeoutRef.current = setTimeout(() => {
-        leaveRoom();
+        if (currentLeaveRoom) currentLeaveRoom();
       }, INACTIVITY_TIMEOUT);
     }
-  }, [room, leaveRoom]);
+  }, []);
 
   /**
    * Enter the matching queue - wait for a partner
@@ -215,7 +215,7 @@ export default function useMatching(sessionId) {
             setMessages(prev => [...prev, msg]);
             // Reset inactivity timer on received message
             if (msg.sender_session_id !== sessionId) {
-              resetInactivityTimer();
+              resetInactivityTimer(room, leaveRoom);
             }
           }
         )
@@ -228,7 +228,7 @@ export default function useMatching(sessionId) {
    * Send a message
    */
   const sendMessage = useCallback(
-    async (content: string, imageUrl?: string) => {
+    async (content, imageUrl) => {
       if (!room) return;
 
       const { error } = await supabase.from('messages').insert({
@@ -245,7 +245,7 @@ export default function useMatching(sessionId) {
       }
 
       // Reset inactivity timer on sent message
-      resetInactivityTimer();
+      resetInactivityTimer(room, leaveRoom);
 
       // Stop typing indicator
       if (typingTimeoutRef.current) {
