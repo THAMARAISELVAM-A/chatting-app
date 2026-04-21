@@ -23,15 +23,19 @@ export default function Chat({
   myNickname, 
   onSkip, 
   onLeave,
+  onReport,
   messages = [],
   onSendMessage,
+  onTyping,
   isPartnerTyping = false
 }) {
   const [inputText, setInputText] = useState('');
   const [showMenu, setShowMenu] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState('');
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -40,6 +44,21 @@ export default function Chat({
     if (!inputText.trim()) return;
     onSendMessage(inputText.trim());
     setInputText('');
+    onTyping?.(false);
+  };
+
+  const handleInputChange = (e) => {
+    setInputText(e.target.value);
+    
+    // Send typing indicator
+    onTyping?.(true);
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    typingTimeoutRef.current = setTimeout(() => {
+      onTyping?.(false);
+    }, 2000);
   };
 
   const handleKeyPress = (e) => {
@@ -49,7 +68,15 @@ export default function Chat({
     }
   };
 
+  const handleReport = () => {
+    if (reportReason && onReport) {
+      onReport(reportReason);
+      setShowReport(false);
+    }
+  };
+
   const formatTime = (timestamp) => {
+    if (!timestamp) return '';
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -78,7 +105,7 @@ export default function Chat({
           </button>
           
           {showMenu && (
-            <div className="menu-dropdown">
+            <div className="menu-dropdown" onClick={() => setShowMenu(false)}>
               <div className="menu-item" onClick={onSkip}>
                 <SkipForward size={16} />
                 Skip to next
@@ -87,7 +114,7 @@ export default function Chat({
                 <LogOut size={16} />
                 Leave chat
               </div>
-              <div className="menu-item" style={{ color: 'var(--error)' }}>
+              <div className="menu-item" onClick={() => setShowReport(true)} style={{ color: 'var(--error)' }}>
                 <Shield size={16} />
                 Report
               </div>
@@ -145,7 +172,7 @@ export default function Chat({
           className="chat-input"
           placeholder="Type a message..."
           value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          onChange={handleInputChange}
           onKeyPress={handleKeyPress}
         />
         
@@ -161,6 +188,60 @@ export default function Chat({
           <Send size={18} />
         </button>
       </div>
+
+      {/* Report Modal */}
+      {showReport && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setShowReport(false)}>
+          <div style={{
+            background: 'var(--bg-secondary)',
+            padding: 24,
+            borderRadius: 16,
+            maxWidth: 400,
+            width: '90%',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3>Report {partnerNick}</h3>
+              <button className="btn btn-ghost btn-icon" onClick={() => setShowReport(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: 14 }}>
+              Why are you reporting this user?
+            </p>
+            
+            <select
+              className="input"
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              style={{ marginBottom: 16 }}
+            >
+              <option value="">Select a reason</option>
+              <option value="inappropriate">Inappropriate behavior</option>
+              <option value="harassment">Harassment</option>
+              <option value="spam">Spam</option>
+              <option value="other">Other</option>
+            </select>
+            
+            <button
+              className="btn btn-primary"
+              onClick={handleReport}
+              disabled={!reportReason}
+              style={{ width: '100%' }}
+            >
+              Submit Report
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

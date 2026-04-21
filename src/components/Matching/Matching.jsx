@@ -1,13 +1,20 @@
-import React from 'react';
-import { X, Search } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 
 /**
  * Matching Screen - Animated Orb Design
  */
 export default function Matching({ nickname, onCancel, onMatched }) {
-  // This would typically connect to Supabase for real matching
-  // For now, it's a placeholder that waits for demo
-  
+  const [count, setCount] = useState(0);
+
+  // Counter for visual effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="screen matching fade-in">
       <div className="matching-orb">
@@ -18,15 +25,13 @@ export default function Matching({ nickname, onCancel, onMatched }) {
 
       <h2 className="matching-text">Finding a stranger...</h2>
       <p className="matching-subtext">
-        Someone cool is waiting to chat with you
+        Connecting you with someone cool
       </p>
 
-      <div style={{ display: 'flex', gap: 12 }}>
-        <button className="btn btn-secondary" onClick={onCancel}>
-          <X size={18} />
-          Cancel
-        </button>
-      </div>
+      <button className="btn btn-secondary" onClick={onCancel}>
+        <X size={18} />
+        Cancel
+      </button>
     </div>
   );
 }

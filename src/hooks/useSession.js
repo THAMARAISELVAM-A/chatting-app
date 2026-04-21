@@ -1,132 +1,89 @@
 import { useState, useEffect, useCallback } from 'react';
-// Types imported from ../types/chat
+import { supabase } from '../lib/supabase';
 
-const SESSION_KEY = 'whisper_session';
-const BLOCK_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
+const SESSION_KEY = 'stranger_chat_session';
 
 /**
- * Generate a unique session ID
+ * Generate unique session ID
  */
 function generateSessionId() {
-  return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
- * Validate nickname: 2-20 chars, no profanity/slurs (basic check)
+ * Validate nickname
  */
 export function validateNickname(nickname) {
-  const trimmed = nickname.trim();
-
-  if (trimmed.length < 2) {
-    return { valid: false, error: 'Nickname must be at least 2 characters' };
-  }
-  if (trimmed.length > 20) {
-    return { valid: false, error: 'Nickname must be 20 characters or less' };
-  }
-
-  // Basic profanity filter - check for common slurs (case-insensitive)
-  const blockedWords = [
-    'nigger', 'faggot', 'cunt', 'fuck', 'shit', 'bitch', 'asshole',
-    'nigga', 'retard', 'spic', 'kike', 'chink', 'wetback', 'tranny'
-  ];
-
-  const lower = trimmed.toLowerCase();
-  for (const word of blockedWords) {
-    if (lower.includes(word)) {
-      return { valid: false, error: 'Nickname contains inappropriate content' };
-    }
-  }
-
+  const trimmed = nickname?.trim() || '';
+  if (trimmed.length < 2) return { valid: false, error: 'At least 2 characters' };
+  if (trimmed.length > 20) return { valid: false, error: 'Max 20 characters' };
+  const blocked = ['admin', 'moderator', 'support', 'system', 'null', 'undefined', 'bot'];
+  if (blocked.includes(trimmed.toLowerCase())) return { valid: false, error: 'Username taken' };
   return { valid: true };
 }
 
 /**
- * Hook to manage anonymous user session
+ * Session hook - manages anonymous user session
  */
 export default function useSession() {
   const [session, setSession] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Initialize or restore session on mount
+  // Initialize session
   useEffect(() => {
     const stored = localStorage.getItem(SESSION_KEY);
-
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        // Check if session is still valid (not stale)
-        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-        if (parsed.createdAt > thirtyDaysAgo) {
+        if (parsed.createdAt > Date.now() - 30 * 24 * 60 * 60 * 1000) {
           setSession(parsed);
           setIsLoaded(true);
           return;
         }
       } catch (e) {
-        console.error('Failed to parse session:', e);
+        console.error('Session parse error:', e);
       }
     }
 
-    // Create new session
     const newSession = {
       id: generateSessionId(),
       nickname: '',
       createdAt: Date.now(),
-      blockedUsers: [],
-      lastSeen: Date.now(),
+      blockedUsers: []
     };
-
     setSession(newSession);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
     setIsLoaded(true);
   }, []);
 
-  // Save session to localStorage when it changes
+  // Save session changes
   useEffect(() => {
-    if (session) {
+    if (session && isLoaded) {
       localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     }
-  }, [session]);
+  }, [session, isLoaded]);
 
-  // Update nickname
+  // Set nickname
   const setNickname = useCallback((nickname) => {
     setSession(prev => prev ? { ...prev, nickname } : null);
   }, []);
 
-  // Update last seen timestamp
-  const updateLastSeen = useCallback(() => {
-    setSession(prev => prev ? { ...prev, lastSeen: Date.now() } : null);
-  }, []);
-
-  // Block a user for 30 minutes
-  const blockUser = useCallback((sessionId) => {
+  // Block user
+  const blockUser = useCallback((blockedId) => {
     setSession(prev => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        blockedUsers: [...prev.blockedUsers.filter(id => id !== sessionId), sessionId],
-      };
+      const blocked = prev.blockedUsers || [];
+      if (blocked.includes(blockedId)) return prev;
+      return { ...prev, blockedUsers: [...blocked, blockedId] };
     });
-
-    // Remove from blocked list after 30 minutes
-    setTimeout(() => {
-      setSession(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          blockedUsers: prev.blockedUsers.filter(id => id !== sessionId),
-        };
-      });
-    }, BLOCK_DURATION);
   }, []);
 
-  // Check if a user is blocked
-  const isBlocked = useCallback(
-    (sessionId) => {
-      return session?.blockedUsers.includes(sessionId) ?? false;
-    },
-    [session]
-  );
+  // Check if blocked
+  const isBlocked = useCallback((id) => {
+    return session?.blockedUsers?.includes(id) || false;
+  }, [session]);
 
-  // Clear session (logout)
+  // Clear session
   const clearSession = useCallback(() => {
     localStorage.removeItem(SESSION_KEY);
     setSession(null);
@@ -136,9 +93,8 @@ export default function useSession() {
     session,
     isLoaded,
     setNickname,
-    updateLastSeen,
     blockUser,
     isBlocked,
-    clearSession,
+    clearSession
   };
 }

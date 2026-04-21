@@ -2,90 +2,71 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Landing from './components/Landing/Landing';
 import Matching from './components/Matching/Matching';
 import Chat from './components/Chat/Chat';
+import useSession from './hooks/useSession';
+import useMatching from './hooks/useMatching';
 import './index.css';
-
-// Generate unique session ID
-function generateSessionId() {
-  return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-// Load or create session
-function getSession() {
-  const key = 'stranger_chat_session';
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed.createdAt > Date.now() - 30 * 24 * 60 * 60 * 1000) {
-        return parsed;
-      }
-    }
-  } catch (e) {}
-  
-  const session = {
-    id: generateSessionId(),
-    nickname: '',
-    createdAt: Date.now()
-  };
-  localStorage.setItem(key, JSON.stringify(session));
-  return session;
-}
 
 export default function App() {
   const [stage, setStage] = useState('landing'); // landing | matching | chat
-  const [session, setSession] = useState(null);
-  const [nickname, setNickname] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
+  const { session, isLoaded, setNickname } = useSession();
+  const {
+    isSearching,
+    startMatching,
+    cancelMatching,
+    leaveRoom,
+    room,
+    partnerSession,
+    partnerNick,
+    messages,
+    sendMessage,
+    markTyping,
+    isPartnerTyping,
+    reportPartner
+  } = useMatching(session?.id || '');
 
-  // Initialize session
-  useEffect(() => {
-    const sess = getSession();
-    setSession(sess);
-  }, []);
-
-  const handleStart = useCallback((nickname) => {
+  const handleStart = useCallback(async (nickname) => {
     setNickname(nickname);
     setStage('matching');
-    
-    // Update session with nickname
-    const newSession = { ...session, nickname };
-    setSession(newSession);
-    localStorage.setItem('stranger_chat_session', JSON.stringify(newSession));
-  }, [session]);
+    await startMatching(nickname);
+  }, [setNickname, startMatching]);
 
-  const handleMatched = useCallback((roomId, partnerSession, partnerNick) => {
-    setStage('chat');
-  }, []);
+  const handleMatched = useCallback(() => {
+    if (room && partnerSession) {
+      setStage('chat');
+    }
+  }, [room, partnerSession]);
 
-  const handleCancel = useCallback(() => {
+  // Auto-transition to chat when matched
+  useEffect(() => {
+    if (stage === 'matching' && room && partnerSession && !isSearching) {
+      handleMatched();
+    }
+  }, [room, partnerSession, isSearching, stage, handleMatched]);
+
+  const handleCancel = useCallback(async () => {
+    await cancelMatching();
     setStage('landing');
-    setNickname('');
-  }, []);
+  }, [cancelMatching]);
 
-  const handleSkip = useCallback(() => {
+  const handleSkip = useCallback(async () => {
+    await leaveRoom();
     setStage('matching');
-    setMessages([]);
-  }, []);
+    if (session?.nickname) {
+      await startMatching(session.nickname);
+    }
+  }, [leaveRoom, startMatching, session]);
 
-  const handleLeave = useCallback(() => {
+  const handleLeave = useCallback(async () => {
+    await leaveRoom();
     setStage('landing');
-    setNickname('');
-    setMessages([]);
-  }, []);
+  }, [leaveRoom]);
 
-  const handleSendMessage = useCallback((content) => {
-    const newMessage = {
-      id: `msg_${Date.now()}`,
-      content,
-      sender_session_id: session?.id,
-      created_at: new Date().toISOString()
-    };
-    setMessages(prev => [...prev, newMessage]);
-  }, [session]);
+  const handleSendMessage = useCallback(async (content) => {
+    await sendMessage(content);
+  }, [sendMessage]);
 
-  // If session not loaded yet
-  if (!session) {
+  // Loading state
+  if (!isLoaded) {
     return (
       <div className="app-container">
         <div className="screen">
@@ -107,7 +88,7 @@ export default function App() {
 
       {stage === 'matching' && (
         <Matching 
-          nickname={nickname}
+          nickname={session?.nickname || ''}
           onCancel={handleCancel}
           onMatched={handleMatched}
         />
@@ -115,15 +96,17 @@ export default function App() {
 
       {stage === 'chat' && (
         <Chat
-          roomId={session?.id}
+          roomId={room?.id}
           mySessionId={session?.id}
-          partnerSession="partner-123"
-          partnerNick="Stranger"
-          myNickname={nickname}
+          partnerSession={partnerSession}
+          partnerNick={partnerNick || 'Stranger'}
+          myNickname={session?.nickname || ''}
           onSkip={handleSkip}
           onLeave={handleLeave}
+          onReport={reportPartner}
           messages={messages}
           onSendMessage={handleSendMessage}
+          onTyping={markTyping}
           isPartnerTyping={isPartnerTyping}
         />
       )}
