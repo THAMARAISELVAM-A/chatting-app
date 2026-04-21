@@ -44,7 +44,7 @@ export function validateNickname(nickname) {
  * Hook to manage anonymous user session
  */
 export default function useSession() {
-  const [session, setSession] = useState<ChatSession | null>(null);
+  const [session, setSession] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Initialize or restore session on mount
