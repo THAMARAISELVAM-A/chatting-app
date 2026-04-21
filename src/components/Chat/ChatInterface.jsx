@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CyberButton, ConnectionMeter } from '../UI/DesignSystem';
 import { 
   Send, X, SkipForward, ShieldCheck, Zap, Gift, User, MoreVertical,
-  MapPin, Clock, Smile
+  MapPin, Clock, Smile, Activity, RefreshCw, Globe, Cpu, Lock
 } from 'lucide-react';
 
 const MOOD_ICONS = {
@@ -17,6 +17,10 @@ const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '👍'];
 
 const SHARED_INTERESTS = ['gaming', 'music', 'movies', 'tech', 'sports'];
 
+import { sounds } from '../../utils/audio';
+
+// ... (existing SHARED_INTERESTS etc) ...
+
 export default function ChatInterface({ 
   messages, 
   inputText, 
@@ -27,17 +31,65 @@ export default function ChatInterface({
   isTyping, 
   mood,
   strength,
-  onSendGift
+  userName,
+  strangerName,
+  userInterests = [],
+  onSendGift,
+  onReport,
+  energy = 100 
 }) {
   const scrollRef = useRef(null);
   const [showGiftAnim, setShowGiftAnim] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [lastMessageTime, setLastMessageTime] = useState(Date.now());
-  const [showReactions, setShowReactions] = useState(null);
-
+  const [tickerText, setTickerText] = useState('PROTOCOL_UPLINK :: SECURE');
+  
+  // Synthetic notification sounds
+  const lastMsgCount = useRef(messages.length);
   useEffect(() => {
+    if (messages.length > lastMsgCount.current) {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.sender === 'stranger') {
+            sounds.incoming();
+        } else {
+            sounds.outgoing();
+        }
+    }
+    lastMsgCount.current = messages.length;
+    
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  const handleGiftClick = () => {
+    const success = onSendGift();
+    if (success) {
+      sounds.gift();
+      setShowGiftAnim(true);
+      setTimeout(() => setShowGiftAnim(false), 2000);
+    } else {
+      sounds.alert();
+    }
+  };
+
+  const handleReport = () => {
+    onReport();
+  };
+
+  // Live ticker simulation
+  useEffect(() => {
+    const logs = [
+      'ENCRYPT_CHANNEL :: ACTIVE',
+      'NODE_042 :: STABLE',
+      'PACKET_TRACE :: 0.04ms',
+      'SIGNAL_LOCK :: 98.4%',
+      'NEURAL_MAP :: SYNCING',
+      'ANALYZE_UPLINK :: OK',
+      'RELAY_STABILITY :: 100%',
+      'ECC_ENCRYPT :: VERIFIED'
+    ];
+    const tickerInterval = setInterval(() => {
+        setTickerText(logs[Math.floor(Math.random() * logs.length)]);
+    }, 4000);
+    return () => clearInterval(tickerInterval);
+  }, []);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -61,111 +113,170 @@ export default function ChatInterface({
     setTimeout(() => setShowGiftAnim(false), 2000);
   };
 
+  const handleReport = () => {
+    alert("User reported. Our AI moderators are now monitoring this chat.");
+    setSidebarOpen(false);
+  };
+
   const timeSinceLastMessage = Math.floor((Date.now() - lastMessageTime) / 1000);
-  const showDisconnectWarning = timeSinceLastMessage > 30 && messages.length > 0;
+  const showDisconnectWarning = timeSinceLastMessage > 45 && messages.length > 0;
 
   const currentMood = MOOD_ICONS[mood] || MOOD_ICONS.FRIENDLY;
 
-  return (
+  // Filter SHARED_INTERESTS to show some overlaps if user selected any
+  const displayInterests = userInterests.length > 0 
+    ? [...new Set([...userInterests.sl  return (
     <motion.div 
       initial={{ scale: 1.05, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       className="h-screen flex relative overflow-hidden"
-      style={{ background: '#0a0a0f' }}
+      style={{ background: '#08080c' }}
     >
-      {/* Floating Orbs Background */}
+      {/* Cinematic HUD Background */}
       <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
+        <div className="mesh-shader animated opacity-40" />
         <motion.div
-          animate={{ 
-            y: [0, -20, 0, 15, 0],
-            x: [0, 15, -10, 10, 0]
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute w-64 h-64 rounded-full bg-neon-cyan"
-          style={{ filter: 'blur(60px)', top: '10%', left: '5%' }}
-        />
-        <motion.div
-          animate={{ 
-            y: [0, 25, 0, -20, 0],
-            x: [0, -15, 10, -10, 0]
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute w-80 h-80 rounded-full bg-purple-500"
-          style={{ filter: 'blur(70px)', bottom: '20%', right: '10%' }}
+           animate={{ 
+             opacity: [0.1, 0.3, 0.1],
+           }}
+           transition={{ repeat: Infinity, duration: 4 }}
+           className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"
         />
       </div>
 
-      <div className="mesh-shader opacity-20" />
-
-      {/* Gift Animation Overlay */}
-      <AnimatePresence>
-        {showGiftAnim && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 2 }}
-            exit={{ opacity: 0, scale: 4 }}
-            className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-none"
-          >
-            <div className="w-64 h-64 bg-neon-cyan/20 blur-[100px] rounded-full" />
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-            >
-              <Zap size={120} className="text-neon-cyan" />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Disconnect Warning Overlay */}
-      <AnimatePresence>
-        {showDisconnectWarning && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
-            style={{ background: 'rgba(10, 10, 15, 0.7)', backdropFilter: 'blur(8px)' }}
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              className="text-center p-6 rounded-2xl"
-              style={{
-                background: 'rgba(255, 45, 85, 0.1)',
-                border: '1px solid rgba(255, 45, 85, 0.2)'
-              }}
-            >
-              <div className="text-4xl mb-3">💭</div>
-              <div className="text-white font-medium mb-1">Stranger disconnected</div>
-              <div className="text-white/50 text-sm mb-4">
-                {timeSinceLastMessage}s ago
-              </div>
-              <CyberButton variant="secondary" onClick={onSkip} className="w-full">
-                Find New Match
-              </CyberButton>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Chat Container */}
-      <div className="flex-1 flex flex-col md:flex-row p-2 md:p-4 gap-2 md:gap-4 relative z-10">
+      {/* Main Chat HUD Overlay */}
+      <div className="flex-1 flex flex-col md:flex-row p-2 md:p-6 gap-4 md:gap-6 relative z-10">
         
-        {/* Chat Stream */}
+        {/* Left Side: Video Mockup & Status */}
+        <div className="hidden lg:flex w-72 xl:w-80 flex-col gap-6">
+           {/* Self View Mockup */}
+           <div 
+             className="relative aspect-video rounded-3xl overflow-hidden border border-white/10 group"
+             style={{ background: 'rgba(10, 10, 15, 0.8)' }}
+           >
+              <div className="absolute inset-0 flex items-center justify-center">
+                 <User size={48} className="text-white/5 opacity-50" />
+                 <motion.div 
+                   animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.3, 0.1] }}
+                   transition={{ repeat: Infinity, duration: 3 }}
+                   className="absolute inset-0 bg-neon-cyan/5 blur-3xl rounded-full"
+                 />
+              </div>
+              
+              <div className="absolute inset-0 pointer-events-none">
+                 <div className="absolute inset-0 bg-[rgba(0,245,255,0.02)] mix-blend-overlay" />
+                 <motion.div 
+                   animate={{ top: ['0%', '100%'] }}
+                   transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+                   className="absolute left-0 right-0 h-px bg-white/10"
+                 />
+              </div>
+
+              <div className="absolute top-4 left-4 flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-error-rose animate-pulse" />
+                 <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Local Node</span>
+              </div>
+              
+              <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
+                 <div className="text-[8px] font-mono text-white/30 space-y-0.5 uppercase">
+                    <div>P_ID: {userName.replace(' ', '_').toUpperCase()}</div>
+                    <div>FPS: 24.0</div>
+                 </div>
+                 <ShieldCheck size={14} className="text-success-emerald opacity-50" />
+              </div>
+           </div>
+
+           {/* Stranger Mockup (Static) */}
+           <div 
+             className="relative aspect-video rounded-3xl overflow-hidden border border-white/5"
+             style={{ background: 'rgba(10, 10, 15, 0.4)' }}
+           >
+              <div className="absolute inset-0 flex items-center justify-center">
+                 <div className="text-center space-y-2">
+                    <RefreshCw className="text-white/5 mx-auto animate-spin" style={{ animationDuration: '6s' }} size={32} />
+                    <div className="text-[8px] font-black uppercase tracking-[0.3em] text-white/10">Remote Protocol Stalled</div>
+                 </div>
+              </div>
+              <div className="absolute top-4 left-4 flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-white/10" />
+                 <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Remote Node</span>
+              </div>
+           </div>
+
+           {/* Protocol Status Widget */}
+           <div 
+             className="flex-1 p-6 rounded-[32px] border border-white/5 flex flex-col gap-6"
+             style={{ background: 'rgba(10, 10, 15, 0.4)', backdropFilter: 'blur(20px)' }}
+           >
+               <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Relay Integrity</span>
+                  <Activity size={14} className="text-neon-cyan" />
+               </div>
+               
+               <div className="space-y-6">
+                  <div className="space-y-2">
+                     <div className="flex justify-between text-[10px] font-bold">
+                        <span className="text-white/40">Core Stability</span>
+                        <span className={energy < 30 ? 'text-error-rose' : 'text-neon-cyan'}>{energy}%</span>
+                     </div>
+                     <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${energy}%` }}
+                          className={`h-full shadow-[0_0_100px_rgba(0,245,255,0.5)] transition-all ${energy < 30 ? 'bg-error-rose' : 'bg-neon-cyan'}`}
+                        />
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                     <div className="flex justify-between text-[10px] font-bold">
+                        <span className="text-white/40">Latency</span>
+                        <span className="text-cyber-purple">24ms</span>
+                     </div>
+                     <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: '85%' }}
+                          className="h-full bg-cyber-purple shadow-[0_0_10px_rgba(139,92,246,0.5)]"
+                        />
+                     </div>
+                  </div>
+               </div>
+
+               <div className="mt-auto pt-6 border-t border-white/5 grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                     <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Region</span>
+                     <div className="flex items-center gap-2">
+                        <Globe size={12} className="text-white/40" />
+                        <span className="text-[10px] font-bold text-white/60">GLOBAL</span>
+                     </div>
+                  </div>
+                  <div className="space-y-1 text-right">
+                     <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Hardware</span>
+                     <div className="flex items-center justify-end gap-2">
+                        <Cpu size={12} className="text-white/40" />
+                        <span className="text-[10px] font-bold text-white/60">H_CORE</span>
+                     </div>
+                  </div>
+               </div>
+           </div>
+        </div>
+        
+        {/* Chat Stream Area */}
         <div 
-          className="flex-1 flex flex-col rounded-2xl overflow-hidden order-1"
+          className="flex-1 flex flex-col rounded-[32px] overflow-hidden order-1 shadow-2xl relative"
           style={{
-            background: 'rgba(10, 10, 15, 0.5)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.05)'
+            background: 'rgba(10, 10, 15, 0.4)',
+            backdropFilter: 'blur(40px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
           }}
         >
+           {/* Cinematic Scroll Indicator */}
+           <div className="absolute top-0 left-10 right-10 h-px bg-gradient-to-r from-transparent via-neon-cyan/40 to-transparent" />
            {/* Knot.Chat-Style Header */}
            <div 
-            className="px-4 py-3 flex items-center justify-between"
+            className="px-6 py-5 flex items-center justify-between"
             style={{
               background: 'rgba(255, 255, 255, 0.02)',
               borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
@@ -174,30 +285,34 @@ export default function ChatInterface({
                <div className="flex items-center gap-3">
                    <div className="relative">
                      <div 
-                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      className="w-10 h-10 rounded-full flex items-center justify-center p-[2px]"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(0, 245, 255, 0.15), rgba(139, 92, 246, 0.15))',
-                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                        background: 'linear-gradient(135deg, #00f5ff, #8b5cf6)',
                       }}
                      >
-                        <User size={18} className="text-white/70" />
+                        <div className="w-full h-full rounded-full bg-[#0a0a0f] flex items-center justify-center">
+                            <User size={18} className="text-white/70" />
+                        </div>
                      </div>
                      <motion.div
-                        animate={{ scale: [1, 1.2, 1] }}
-                        transition={{ repeat: Infinity, duration: 1 }}
+                        animate={{ scale: [1, 1.2, 1], opacity: [1, 0.5, 1] }}
+                        transition={{ repeat: Infinity, duration: 1.5 }}
                         className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-black`}
                         style={{ background: isTyping ? '#ffaa00' : '#00ffaa' }}
                      />
                    </div>
                    <div>
-                      <div className="text-sm font-semibold text-white">Stranger</div>
-                      <div className="text-[11px] text-white/50 flex items-center gap-2">
+                      <div className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                        {strangerName}
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-emerald animate-pulse" />
+                      </div>
+                      <div className="text-[10px] text-white/40 flex items-center gap-2 font-medium">
                          {isTyping ? (
-                           <span className="text-warning-amber">typing...</span>
+                           <span className="text-warning-amber">ghost typing...</span>
                          ) : (
                            <>
                              <span className="flex items-center gap-1">
-                               <MapPin size={10} />Earth
+                               <MapPin size={10} />Node_042
                              </span>
                              <span>·</span>
                              <span className="flex items-center gap-1">
@@ -209,19 +324,18 @@ export default function ChatInterface({
                    </div>
                </div>
                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-white/50 mr-2 hidden md:block">
-                    ESC to skip
-                  </span>
-                  <CyberButton onClick={onSkip} variant="secondary" className="py-2 h-9 text-[10px] px-3">
-                     Skip
-                  </CyberButton>
-                  <button 
+                   <span className="text-[10px] text-white/30 mr-2 hidden md:block font-bold tracking-widest uppercase">
+                     ESC to Skip
+                   </span>
+                   <CyberButton onClick={onSkip} variant="secondary" className="py-2 h-9 text-[10px] px-3 font-bold uppercase tracking-wider">
+                      Skip
+                   </CyberButton>
+                   <button 
                     onClick={() => setSidebarOpen(!sidebarOpen)} 
-                    className="p-2 rounded-full transition-colors hover:bg-white/5"
-                    style={{ color: 'rgba(255, 255, 255, 0.4)' }}
+                    className={`p-2 rounded-full transition-all ${sidebarOpen ? 'bg-white/10 text-white' : 'text-white/40 hover:bg-white/5 hover:text-white/60'}`}
                   >
-                     <MoreVertical size={18} />
-                  </button>
+                      <MoreVertical size={18} />
+                   </button>
                </div>
             </div>
 
@@ -229,18 +343,21 @@ export default function ChatInterface({
             <div 
               className="px-4 py-2 flex items-center gap-2 flex-wrap"
               style={{
-                borderBottom: '1px solid rgba(255, 255, 255, 0.03)'
+                background: 'rgba(0, 245, 255, 0.02)',
+                borderBottom: '1px solid rgba(0, 245, 255, 0.05)'
               }}
             >
-               <span className="text-[10px] text-white/50">Shared:</span>
-               {SHARED_INTERESTS.slice(0, 3).map(interest => (
+               <span className="text-[9px] uppercase tracking-widest text-white/30 font-bold">
+                 {displayInterests.length > 0 ? 'Neural Match Matrix:' : 'Random Signal Uplink:'}
+               </span>
+               {displayInterests.map(interest => (
                  <span 
                    key={interest}
-                   className="text-[10px] px-2 py-0.5 rounded-full"
+                   className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
                    style={{
-                     background: 'rgba(0, 245, 255, 0.1)',
+                     background: 'rgba(0, 245, 255, 0.08)',
                      color: '#00f5ff',
-                     border: '1px solid rgba(0, 245, 255, 0.2)'
+                     border: '1px solid rgba(0, 245, 255, 0.15)'
                    }}
                  >
                    {interest}
@@ -251,20 +368,26 @@ export default function ChatInterface({
             {/* Messages List */}
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-4 flex flex-col gap-3"
+              className="flex-1 overflow-y-auto p-4 flex flex-col gap-4"
             >
                {messages.length === 0 && (
                  <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
-                    <div 
-                      className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
                       style={{
-                        background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.05)'
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        boxShadow: 'inset 0 0 20px rgba(255,255,255,0.02)'
                       }}
                     >
-                       <User size={28} className="text-white/20" />
-                    </div>
-                    <p className="text-white/50 text-sm">Say hello to start the conversation!</p>
+                       <User size={32} className="text-white/10" />
+                    </motion.div>
+                    <p className="text-white/30 text-sm font-medium tracking-wide">
+                        Secure connection established.<br/>
+                        <span className="text-xs opacity-50">Say hello to {strangerName}</span>
+                    </p>
                  </div>
                )}
 
@@ -277,8 +400,8 @@ export default function ChatInterface({
                  if (isSystem) return (
                    <div key={msg.id} className="flex justify-center py-2">
                      <span 
-                      className="text-[10px] font-medium text-white/50 px-3 py-1.5 rounded-full"
-                      style={{ background: 'rgba(255, 255, 255, 0.03)' }}
+                      className="text-[10px] font-bold tracking-widest uppercase text-white/30 px-4 py-1.5 rounded-full border border-white/5"
+                      style={{ background: 'rgba(255, 255, 255, 0.02)' }}
                      >
                        {msg.text}
                      </span>
@@ -288,74 +411,38 @@ export default function ChatInterface({
                  return (
                    <motion.div
                      key={msg.id}
-                     initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                     transition={{ duration: 0.2 }}
-                     className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
-                     onmouseEnter={() => setShowReactions(msg.id)}
-                     onMouseLeave={() => setShowReactions(null)}
+                     initial={{ opacity: 0, x: isUser ? 20 : -20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     transition={{ duration: 0.3 }}
+                     className={`flex gap-3 w-full ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
                    >
-                     {!isUser && showAvatar && (
-                       <div 
-                        className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center self-end"
-                        style={{
-                          background: 'linear-gradient(135deg, rgba(0, 245, 255, 0.2), rgba(139, 92, 246, 0.2))'
-                        }}
-                       >
-                          <User size={12} className="text-white" />
-                       </div>
-                     )}
-                     {!isUser && !showAvatar && <div className="w-8 shrink-0" />}
-                     
-                     <div className={`max-w-[75%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                        {/* Reaction buttons on hover */}
-                        {!isUser && showReactions === msg.id && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex gap-1 mb-1"
-                          >
-                            {REACTION_EMOJIS.map(emoji => (
-                              <button
-                                key={emoji}
-                                className="text-xs hover:scale-125 transition-transform"
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                        
+                     <div className={`max-w-[80%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                         <div 
-                          className={`px-4 py-2.5 rounded-2xl ${
+                          className={`px-4 py-3 rounded-2xl ${
                             isUser 
-                              ? 'text-deep-space rounded-br-md' 
-                              : 'text-white/90 rounded-bl-md'
+                              ? 'text-deep-space rounded-tr-none' 
+                              : 'text-white/90 rounded-tl-none'
                           }`}
                           style={
                             isUser 
                               ? { 
                                   background: 'linear-gradient(135deg, #00f5ff, #00c4cc)',
-                                  boxShadow: '0 0 20px rgba(0, 245, 255, 0.2)',
-                                  fontWeight: 500
+                                  boxShadow: '0 4px 15px rgba(0, 245, 255, 0.3)',
+                                  fontWeight: 600
                                 }
                               : { 
-                                  background: 'rgba(255, 255, 255, 0.05)',
+                                  background: 'rgba(255, 255, 255, 0.08)',
                                   backdropFilter: 'blur(10px)',
-                                  WebkitBackdropFilter: 'blur(10px)',
-                                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                                  border: '1px solid rgba(255, 255, 255, 0.15)'
                                 }
                           }
                         >
-                           <p className="text-sm leading-relaxed">
+                           <p className="text-sm leading-relaxed whitespace-pre-wrap">
                              {msg.text}
                            </p>
                         </div>
-                        <div className="text-[10px] text-white/40 mt-1 px-1 flex items-center gap-2">
-                           {msg.time}
-                           {isUser && (
-                             <span className="text-neon-cyan">✓</span>
-                           )}
+                        <div className="text-[9px] font-bold text-white/20 mt-1.5 px-1 uppercase tracking-widest">
+                           {msg.time} {isUser && '· TRANSMITTED'}
                         </div>
                      </div>
                    </motion.div>
@@ -366,32 +453,33 @@ export default function ChatInterface({
                  <motion.div
                    initial={{ opacity: 0 }}
                    animate={{ opacity: 1 }}
-                   className="flex gap-2"
+                   className="flex gap-3"
                  >
-                    <div 
-                      className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(0, 245, 255, 0.2), rgba(139, 92, 246, 0.2))'
-                      }}
-                    >
-                       <User size={12} className="text-white" />
+                    <div className="w-8 shrink-0 flex flex-col justify-end pb-1">
+                        <div 
+                          className="w-8 h-8 rounded-full flex items-center justify-center opacity-50"
+                          style={{ background: 'rgba(255,255,255,0.05)' }}
+                        >
+                           <User size={12} className="text-white/50" />
+                        </div>
                     </div>
                     <div 
-                      className="px-4 py-3 rounded-2xl rounded-bl-md flex gap-1.5"
+                      className="px-4 py-3 rounded-2xl rounded-tl-none flex gap-1.5 items-center"
                       style={{
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)'
                       }}
                     >
                        {[0, 1, 2].map(i => (
                          <motion.div 
                            key={i}
                            animate={{ 
-                             opacity: [0.3, 0.8, 0.3],
-                             backgroundColor: ['rgba(255,255,255,0.3)', 'rgba(0,245,255,0.8)', 'rgba(255,255,255,0.3)']
+                             scale: [1, 1.5, 1],
+                             opacity: [0.3, 1, 0.3],
+                             backgroundColor: ['#fff', '#00f5ff', '#fff']
                            }}
                            transition={{ repeat: Infinity, duration: 1, delay: i * 0.15 }}
-                           className="w-2 h-2 rounded-full" 
+                           className="w-1.5 h-1.5 rounded-full" 
                          />
                        ))}
                     </div>
@@ -400,27 +488,58 @@ export default function ChatInterface({
             </div>
 
             {/* Input Interface */}
-            <div className="p-3" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-               <div className="flex gap-2 items-center">
-                  <CyberButton variant="secondary" onClick={handleGift} className="w-10 h-10 p-0 shrink-0">
-                     <Gift size={16} />
-                  </CyberButton>
-                  <input
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend?.()}
-                    placeholder="Message..."
-                    className="flex-1 rounded-full px-4 py-2.5 text-sm text-white placeholder:text-white/25 focus:outline-none transition-all"
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)'
-                    }}
-                  />
-                  <CyberButton onClick={onSend} className="w-10 h-10 p-0 rounded-full shrink-0">
-                     <Send size={16} />
-                  </CyberButton>
+            <div className="p-4" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+               <div className="flex gap-3 items-center">
+                  <div className="flex flex-col items-center">
+                      <div className="text-[9px] font-bold text-neon-cyan/40 mb-1 uppercase tracking-tighter">PROTOCOL GIFT</div>
+                      <CyberButton 
+                        variant="secondary" 
+                        onClick={handleGiftClick} 
+                        disabled={energy < 20}
+                        className="w-11 h-11 p-0 shrink-0 rounded-xl"
+                      >
+                         <Gift size={18} className={energy >= 20 ? "text-neon-cyan" : "text-white/20"} />
+                      </CyberButton>
+                  </div>
+                  <div className="flex-1 relative group">
+                      <input
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && onSend?.()}
+                        placeholder={`Message as ${userName}...`}
+                        className="w-full rounded-2xl px-5 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none transition-all"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)'
+                        }}
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                         <CyberButton onClick={onSend} className="w-10 h-10 p-0 rounded-xl bg-neon-cyan shadow-lg shadow-neon-cyan/20">
+                            <Send size={18} className="text-black" />
+                         </CyberButton>
+                      </div>
+                  </div>
                </div>
             </div>
+           {/* Live Protocol Ticker */}
+           <div className="absolute bottom-0 left-0 right-0 h-6 bg-black/60 backdrop-blur-md border-t border-white/5 flex items-center px-6 overflow-hidden z-20">
+              <motion.div 
+                animate={{ x: [0, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="w-1.5 h-1.5 rounded-full bg-neon-cyan/40 mr-3 shrink-0"
+              />
+              <AnimatePresence mode="wait">
+                <motion.span 
+                  key={tickerText}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="text-[9px] font-mono text-white/20 uppercase tracking-[0.2em] whitespace-nowrap"
+                >
+                  {tickerText}
+                </motion.span>
+              </AnimatePresence>
+           </div>
         </div>
 
         {/* Collapsible Sidebar */}
@@ -430,54 +549,75 @@ export default function ChatInterface({
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="hidden md:flex w-[260px] flex-col gap-4 order-2 shrink-0"
+              className="hidden lg:flex w-[300px] flex-col gap-4 order-2 shrink-0"
             >
               <div 
-                className="rounded-2xl p-5 flex flex-col gap-5"
+                className="rounded-2xl p-6 flex flex-col gap-6"
                 style={{
                   background: 'rgba(10, 10, 15, 0.6)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
+                  backdropFilter: 'blur(40px)',
                   border: '1px solid rgba(255, 255, 255, 0.05)'
                 }}
               >
-<div className="flex items-center justify-between">
-                   <div className="text-xs text-white/50 uppercase tracking-wider">Chat Info</div>
+                <div className="flex items-center justify-between">
+                   <div className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-black">Operator Dashboard</div>
                    <button 
                      onClick={() => setSidebarOpen(false)} 
-                     className="text-white/50 hover:text-white transition-colors"
+                     className="p-1.5 hover:bg-white/5 rounded-full text-white/30 hover:text-white transition-all"
                    >
                        <X size={16} />
                    </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                    <div 
-                    className="flex items-center justify-between p-3 rounded-xl"
-                    style={{ background: 'rgba(255, 255, 255, 0.03)' }}
+                    className="flex flex-col gap-1 p-4 rounded-xl border border-white/5"
+                    style={{ background: 'rgba(255, 255, 255, 0.02)' }}
                    >
-                      <span className="text-xs text-white/50">Status</span>
-                      <div className="flex items-center gap-1.5">
-                         <ShieldCheck size={12} className="text-success-emerald" />
-                         <span className="text-xs text-success-emerald">Encrypted</span>
+                      <span className="text-[9px] text-white/30 uppercase font-bold tracking-widest">Connection Status</span>
+                      <div className="flex items-center gap-2">
+                         <ShieldCheck size={14} className="text-success-emerald" />
+                         <span className="text-xs text-white font-bold tracking-tight">Quantum Encrypted</span>
+                      </div>
+                      <div className="mt-2">
+                        <ConnectionMeter strength={strength} />
                       </div>
                    </div>
+
                    <div 
-                    className="flex items-center justify-between p-3 rounded-xl"
-                    style={{ background: 'rgba(255, 255, 255, 0.03)' }}
+                    className="flex items-center justify-between p-4 rounded-xl border border-white/5"
+                    style={{ background: 'rgba(255, 255, 255, 0.02)' }}
                    >
-                      <span className="text-xs text-white/50">Mood</span>
-                      <span className="text-xs text-white flex items-center gap-1">
-                        {currentMood.icon} {currentMood.label}
+                      <span className="text-[9px] text-white/30 uppercase font-bold tracking-widest">Current Mood</span>
+                      <span className="text-xs text-white font-bold flex items-center gap-1.5">
+                        <span className="text-lg leading-none">{currentMood.icon}</span>
+                        {currentMood.label}
                       </span>
                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                   <CyberButton variant="danger" onClick={onEnd} className="py-2.5 text-[11px]">
-                      <X size={14} /> End
-                   </CyberButton>
+                <div className="space-y-3 pt-2">
+                   <div className="text-[9px] text-white/20 uppercase font-black tracking-[0.3em] pl-1">Actions</div>
+                   <div className="grid grid-cols-1 gap-2">
+                      <CyberButton variant="danger" onClick={handleReport} className="w-full py-3 text-[10px] font-black uppercase tracking-widest">
+                         Report Operator
+                      </CyberButton>
+                      <button 
+                        onClick={onEnd}
+                        className="w-full py-3 rounded-full text-[10px] font-black uppercase tracking-widest text-[#ff2d55]/40 hover:text-[#ff2d55] hover:bg-[#ff2d55]/10 border border-[#ff2d55]/10 transition-all"
+                      >
+                         End Transmission
+                      </button>
+                   </div>
                 </div>
+              </div>
+
+              <div 
+                 className="mt-auto p-6 rounded-2xl border border-white/5 text-center"
+                 style={{ background: 'rgba(10, 10, 15, 0.3)' }}
+              >
+                  <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest mb-1">Signed in as</p>
+                  <p className="text-sm text-white/60 font-black italic">{userName}</p>
               </div>
             </motion.div>
           )}
